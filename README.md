@@ -21,12 +21,12 @@ Requirements
 
 The following python built-in modules are required:
 
-csv
-json
-re
-sys
-time
-tkFileDialog
+csv,
+json,
+re,
+sys,
+time,
+tkFileDialog,
 Tkinter
 
 -------------------
