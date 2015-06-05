@@ -5,7 +5,7 @@ A tool to report total amounts of data archived to LTO
 Introduction
 ------------
 
-This tool was designed to collect information on the amount of archiving storage held for clients. There currently isn't a way to produce this info from either CatDV or GBlabs software so this program acts as a link between the two.
+This tool was designed to collect information on the amount of archiving storage held for clients. There currently isn't a way to produce this info from either CatDV or GBlabs Space LTO software so this program acts as a link between the two.
 
 Ltohistory collects individual barcode numbers from our LTO tapes
 and the storage information of files that have been written to LTO. It then separates the data for each client and adds up the total archived storage space.
