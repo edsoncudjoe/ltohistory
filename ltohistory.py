@@ -15,7 +15,7 @@ import time
 import tkFileDialog
 from Tkinter import *
 sys.path.insert(0, '../Py-CatDV') 
-from CatDVlib import Cdvlib
+from pycatdv import Catdvlib
 
 def byte2TB(byte):
 	"""
@@ -66,7 +66,7 @@ def lto_to_list(data):
 	final = []
 	for item in data:
 		try:
-			collect.append((item[0], item[6])) # add IV name and size to list	
+			collect.append((item[0], item[6])) 
 		except:
 			print('Unable to add data: {}'.format(item))
 			continue
@@ -77,12 +77,13 @@ def lto_to_list(data):
 			if 'test' in c[0]:
 				continue
 			#1 file has been labelled incorrectly.
-			# It will be temporarily skipped until the tape has been fixed.
+			# It will be temporarily skipped until the tape has been
+			#fixed.
 			elif 'Intervideo' in c[0]:
 				continue
 			else:
-				gb = byte2TB(c[1]) # converts GB byte data to TB
-				a = re.search(r'(IV\d\d\d\d)', c[0]) #removes unicode
+				gb = byte2TB(c[1])
+				a = re.search(r'(IV\d\d\d\d)', c[0])
 				final.append((str(a.group()), round(gb, 2))) 
 	return final
 
@@ -131,10 +132,10 @@ def get_storage_size(client_items):
 def catdv_login(user):
 	"""Enter CatDV server login details to get access to the API"""
 	try:
-		user.getAuth()
+		user.get_auth()
 		print('\nGetting catalog data...\n')
-		user.getSessionKey()
-		user.getCatalogName()
+		user.get_session_key()
+		user.get_catalog_name()
 		time.sleep(1)
 		print('Catalog names and ID\'s have been loaded')
 	except:
@@ -151,9 +152,9 @@ def show_catalog_names(user):
 def get_barcodes(group_id):
 	"""Gets a list of IV barcodes for user-specified client."""
 	user.iv_barcodes = []
-	user.getCatalogClips(group_id)
-	user.collectIVNumbers()
-	return user.sortBarcodes()
+	user.get_catalog_clips(group_id)
+	user.collect_iv_numbers()
+	return user.sort_barcodes()
 
 def client_name_id(user):
 	"""Puts client names and id numbers into a dictionary"""
@@ -229,7 +230,7 @@ options['filetypes'] = [
 root = Tk()
 root.withdraw()
 
-user = Cdvlib()
+user = Catdvlib()
 def main():
 	try:
 		lt_info = get_lto_info()
@@ -272,7 +273,7 @@ def main():
 	except TypeError:
 		print('Unable to perform this process due to a missing file.')
 	finally:
-		user.deleteSession()
+		user.delete_session()
 		try:
 			if lto_file:
 				lto_file.close()
