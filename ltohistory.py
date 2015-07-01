@@ -84,24 +84,32 @@ def lto_to_list(data):
 			else:
 				gb = byte2TB(c[1])
 				a = re.search(r'(IV\d\d\d\d)', c[0])
-				final.append((str(a.group()), round(gb, 2))) 
+				final.append((str(a.group()), round(gb, 2)))
 	return final
 
 # retrieve data from GBlabs JSON output
-def get_json(submitted):
-	lto = open(submitted, 'r')
+def get_json(submitted_lto_file):
+	"""
+	Reads submitted JSON file and returns the JSON dictionary
+	"""
+	lto = open(submitted_lto_file, 'r')
 	jfile = json.load(lto)
 	return jfile
 
-def json_to_list(json):
+def json_to_list(json_data_from_file):
+	"""Reads data from JSON dictionary. Returns data into a list"""
 	json_collect = []
-	for i in json['tapes']:
+	for i in json_data_from_file['tapes']:
 		json_collect.append((i['name'], i['used_size']))
 	return json_collect 
 
-def json_final(current):
+def json_final(current_json_list):
+	"""
+	Converts given filesize into TB. returns list of tuples containing
+	IV barcode numbers plus file size.
+	"""
 	final = []
-	for c in current:
+	for c in current_json_list:
 		try:
 			tb = byte2TB(c[1]) # converts GB byte data to TB
 			a = re.search(r'(IV\d\d\d\d)', c[0]) #removes unicode
@@ -176,8 +184,8 @@ def total_sizes(client_dict, name_size):
 			terabytes = get_storage_size(two)
 			
 			print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
-	except:
-		raise TypeError
+	except Exception, e:
+		print e
 
 def get_lto_info():
 	"""Collects LTO information into a list. User chooses LTO file."""
@@ -232,6 +240,7 @@ root.withdraw()
 
 user = Catdvlib()
 def main():
+	print("Select LTO output file")
 	try:
 		lt_info = get_lto_info()
 
