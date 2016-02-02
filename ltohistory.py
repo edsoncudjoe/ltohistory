@@ -11,6 +11,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import time
 import tkFileDialog
 from selenium import webdriver
@@ -33,6 +34,7 @@ def set_search_dates():
     beginning = last_mth.replace(day=1)
     end = last_mth.strftime("%Y/%m/%d")
     start = beginning.strftime("%Y/%m/%d")
+    print('Start: {}. End: {}'.format(start, end))
     return start, end
 
 
@@ -331,20 +333,16 @@ def print_manual(collected):
 LTOFILETYPES = options = {}
 options['filetypes'] = [
     ('all files', '.*'), ('json files', '.json'), ('csv files', '.csv')]
-root = Tk()
-root.withdraw()
+# root = Tk()
+# root.withdraw()
 
 
 def main():
     print("Select LTO output file")
     try:
-
-        username = raw_input("Enter the space LTO username: \n")
-        password = raw_input("Enter the Space LTO password: \n")
-
-        download_lto_file(username, password)
+        download_lto_file(username='admin', password='space')
+        
         lt_info = get_lto_info()
-
         start = True
         while start:
             auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
