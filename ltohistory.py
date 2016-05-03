@@ -108,6 +108,7 @@ def byte2tb(byte):
         print("Value could not be converted to float. {}".format(str(byte)))
 
 
+
 def get_catdv_data(textfile):
     """
     Opens text file from CatDV output containing Intervideo barcodes.
@@ -197,7 +198,7 @@ def json_final(current_json_list):
     for c in current_json_list:
         try:
             tb = byte2tb(c[1])  # converts GB byte data to TB
-            a = re.search(r'(IV\d\d\d\d)', c[0])  # removes unicode
+            a = re.search(r'(IV\d\d\d\d)', c[0])
             final.append((str(a.group()), round(tb, 2)))
         except AttributeError:
             pass
@@ -274,8 +275,8 @@ def total_sizes(client_dict, name_size):
     assert len(name_size) > 0
     try:
         for item in client_dict.items():
-            api = get_barcodes(item[1])
-            two = set(get_client_items(name_size, api))
+            barcodes = get_barcodes(item[1])
+            two = set(get_client_items(name_size, barcodes))
             terabytes = get_storage_size(two)
 
             print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
