@@ -20,7 +20,9 @@ import sys
 sys.path.insert(0, '../Py-CatDV')
 from pycatdv import Catdvlib
 
+HOME = os.getcwd()
 c = Catdvlib()
+
 
 
 def set_search_dates():
@@ -38,7 +40,24 @@ def set_search_dates():
     return start, end
 
 
-def open_browser():
+def open_chrome_browser():
+    ch_profile = webdriver.ChromeOptions()
+    pref = {'download.default_directory': HOME}
+    ch_profile.add_experimental_option('prefs', pref)
+    chrome_driver = '/Applications/Google ' \
+                    'Chrome.app/Contents/MacOS/chromedriver'
+    try:
+        gc = webdriver.Chrome(chrome_driver,
+                                  chrome_options=ch_profile)
+        time.sleep(5)
+        gc.get("http://192.168.0.190/login/?p=/lto/catalogue/")
+        assert 'LTO Space Login' == gc.title.encode('utf-8')
+        return gc
+    except Exception as gc_err:
+        raise gc_err
+
+
+def open_firefox_browser():
     profile = webdriver.FirefoxProfile()
     profile.set_preference('browser.download.folderList', 2)
     profile.set_preference('browser.download.manager.showWhenStarting', False)
@@ -46,10 +65,23 @@ def open_browser():
     profile.set_preference('browser.helperApps.neverAsk.saveToDisk',
                            'application/json,text/javascript,text/json,'
                            'text/x-json')
-    driver = webdriver.Firefox(firefox_profile=profile)
-    driver.get("http://192.168.0.190/login/?p=/lto/catalogue/")
-    assert 'LTO Space Login' == driver.title.encode('utf-8')
-    return driver
+    try:
+        ffx = webdriver.Firefox(firefox_profile=profile)
+        time.sleep(5)
+        ffx.get("http://192.168.0.190/login/?p=/lto/catalogue/")
+        assert 'LTO Space Login' == ffx.title.encode('utf-8')
+        return ffx
+    except Exception as ffx_err:
+        raise ffx_err
+
+
+def open_browser():
+    try:
+        browser = open_firefox_browser()
+    except Exception as e:
+        print('ERROR: {}'.format(e))
+        browser = open_chrome_browser()
+    return browser
 
 
 def browser_login(browser, usr, pwd):
@@ -61,6 +93,7 @@ def browser_login(browser, usr, pwd):
 
     btn = browser.find_element_by_tag_name("button")
     btn.click()
+    time.sleep(1)
 
 
 def download_lto_file(username, password):
@@ -81,19 +114,32 @@ def download_lto_file(username, password):
 
         dates = set_search_dates()
 
-        set_from.send_keys(Keys.COMMAND + "a")
-        set_from.send_keys(Keys.DELETE)
-        set_from.send_keys(dates[0])
-        set_to.send_keys(Keys.COMMAND + "a")
-        set_to.send_keys(Keys.DELETE)
-        set_to.send_keys(dates[1])
+        if firefox.name == 'chrome':
+            set_from.clear()
+            set_from.send_keys(dates[0])
+            set_to.clear()
+            set_to.send_keys(dates[1])
+        else:
+            set_from.send_keys(Keys.COMMAND + "a")
+            set_from.send_keys(Keys.DELETE)
+            set_from.send_keys(dates[0])
+            time.sleep(1)
+            set_to.send_keys(Keys.COMMAND + "a")
+            set_to.send_keys(Keys.DELETE)
+            set_to.send_keys(dates[1])
 
+        time.sleep(3)
+        # click on blank area to close calender
+        border_click = firefox.find_element_by_id("browse") 
+        border_click.click()
+        time.sleep(1)
+
+        # download file
         export = firefox.find_element_by_id("btn_exporthist_save")
         export.click()
-        time.sleep(3)
+        time.sleep(10)
 
         firefox.quit()
-
     except IndexError:
         raise IndexError
 
@@ -106,7 +152,6 @@ def byte2tb(byte):
         return tb
     except ValueError:
         print("Value could not be converted to float. {}".format(str(byte)))
-
 
 
 def get_catdv_data(textfile):
@@ -344,6 +389,7 @@ def main():
         download_lto_file(username='admin', password='space')
         
         lt_info = get_lto_info()
+        print(lt_info)
         start = True
         while start:
             auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
@@ -351,8 +397,8 @@ def main():
                 catdv_login(c)
 
                 names_and_groupid = client_name_id(c)
+                print(names_and_groupid)
                 total_sizes(names_and_groupid, lt_info)
-
                 start = False
 
             elif auth == 'n':
