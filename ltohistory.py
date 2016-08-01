@@ -21,8 +21,7 @@ sys.path.insert(0, '../Py-CatDV')
 from pycatdv import Catdvlib
 
 HOME = os.getcwd()
-c = Catdvlib()
-
+c = Catdvlib('192.168.0.101:8080', '4')
 
 
 def set_search_dates():
@@ -77,10 +76,9 @@ def open_firefox_browser():
 
 def open_browser():
     try:
-        browser = open_firefox_browser()
+        browser = open_chrome_browser()
     except Exception as e:
         print('ERROR: {}'.format(e))
-        browser = open_chrome_browser()
     return browser
 
 
@@ -379,8 +377,6 @@ def print_manual(collected):
 LTOFILETYPES = options = {}
 options['filetypes'] = [
     ('all files', '.*'), ('json files', '.json'), ('csv files', '.csv')]
-# root = Tk()
-# root.withdraw()
 
 
 def main():

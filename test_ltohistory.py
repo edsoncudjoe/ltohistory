@@ -86,8 +86,8 @@ class TestLtoHistory(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.c = Catdvlib()
-        cls.c.get_auth()
+        cls.c = Catdvlib(server_url='192.168.0.101', api_vers=4)
+        cls.c.set_auth(username='web', password='python')
         cls.key = cls.c.get_session_key()
 
     @classmethod
