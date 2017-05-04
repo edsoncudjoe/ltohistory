@@ -1,11 +1,13 @@
+import glob
 import json
-import ltohistory as lh
+import os
 import unittest
-import sys
 import time
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-sys.path.insert(0, '../Py-CatDV')
+
+import ltohistory as lh
 from pycatdv import Catdvlib
 
 
@@ -19,6 +21,7 @@ class TestSpaceLTOInterface(unittest.TestCase):
         if self.browser:
             self.browser.quit()
 
+    @unittest.skip("No longer used")
     def test_firefox_browser(self):
         """Open firefox browser"""
         self.browser = lh.open_firefox_browser()
@@ -28,6 +31,7 @@ class TestSpaceLTOInterface(unittest.TestCase):
         # self.assertEqual('LTO Space Login', firefox.title.encode('utf-8'))
 
     def test_chrome_browser(self):
+        """Open the Chrome driver"""
         self.browser = lh.open_chrome_browser()
         self.browser.get(self.lto_url)
         self.assertIsInstance(self.browser,
@@ -86,13 +90,14 @@ class TestLtoHistory(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.c = Catdvlib(server_url='192.168.0.101', api_vers=4)
+        cls.c = Catdvlib(server_url='192.168.0.101:8080', api_vers=4)
         cls.c.set_auth(username='web', password='python')
         cls.key = cls.c.get_session_key()
 
     @classmethod
     def tearDownClass(cls):
         cls.c.delete_session()
+
 
     def test_catdv_login(self):
         """Test whether login returns a successful status code"""
@@ -104,7 +109,7 @@ class TestLtoHistory(unittest.TestCase):
         assert filename
         jdata = json.load(filename)
         collection = [(i['name'], i['used_size']) for i in jdata['tapes']]
-        self.assertGreater(len(collection), 1)
+        self.assertGreater(len(collection), 1, 'list should not be empty')
 
     def test_client_name_id(self):
         """
@@ -114,6 +119,27 @@ class TestLtoHistory(unittest.TestCase):
         self.c.get_catalog_name()
         self.name_id = lh.client_name_id(self.c)
         self.assertGreater(len(self.name_id), 2)
+
+    @unittest.skip("No longer used")
+    def test_total_sizes(self):
+        clients = {u'NGTV': 4627, u'ContentMedia': 66924, u'Power': 1602,
+                   u'Dreamworks': 15653}
+        lto_info = [('IV0624', 1.17), ('IV0625', 1.17)]
+        lh.total_sizes(client_dict=clients, name_size=lto_info)
+        pass
+
+    def test_calculate_written_data(self):
+        lto_info = lh.get_lto_info()
+        self.c.get_catalog_name()
+        names = lh.client_name_id(self.c)
+        group_data = lh.calculate_written_data(lto_info, names,
+                                               server=self.c.server,
+                                               api_vers=self.c.api,
+                                               key=self.c.key)
+        self.assertEqual(type(group_data), type({}), 'group data shoud be a '
+                                                     'dictionary')
+        self.assertIn('NGTV', group_data.keys(), 'NGTV should be one of the '
+                                                 'group names')
 
 if __name__ == '__main__':
     test_classes = [TestSpaceLTOInterface, TestLtoHistory]

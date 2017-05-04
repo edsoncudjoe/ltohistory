@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import requests
 import time
 import tkFileDialog
 from selenium import webdriver
@@ -256,6 +257,7 @@ def get_client_items(name_size, clientlist):
             for i in sorted(name_size):
                 if i[0] in p:
                     client_mnth.append(i)
+        print('get_clientitems.client_mnth: {}'.format(client_mnth))
         return client_mnth
     except:
         raise TypeError
@@ -292,10 +294,10 @@ def show_catalog_names(user):
         print(e)
 
 
-def get_barcodes(group_id):
+def get_barcodes(catalog_id):
     """Gets a list of IV barcodes for user-specified client."""
     c.iv_barcodes = []
-    c.get_catalog_clips(group_id)
+    c.get_catalog_clips(catalog_id)
     c.collect_iv_numbers()
     return c.sort_barcodes()
 
@@ -316,11 +318,18 @@ def total_sizes(client_dict, name_size):
     """Returns total amount archived for each client/catalog group"""
     assert client_dict
     assert len(name_size) > 0
+    print(client_dict)
+    print(name_size)
     try:
         for item in client_dict.items():
             barcodes = get_barcodes(item[1])
+            print('Barcodes: {}'.format(barcodes))
+
             two = set(get_client_items(name_size, barcodes))
+            print('Two: {}'.format(two))
+
             terabytes = get_storage_size(two)
+            print('T: {}'.format(terabytes))
 
             print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
     except Exception, e:
@@ -374,16 +383,53 @@ def print_manual(collected):
         print('Archived: {}TB for {}'.format(size, name))
 
 
+def calculate_written_data(lto_data, names_dict, server, api_vers, key):
+    """
+    Searches the CatDV API based on the IV barcode number.
+    Collects the group name details from the results.
+    Calculates how TB has been written based on the amount detailed on
+    the Space LTO results.
+    """
+
+    cat_grp_names = {i: [0, 0] for i in names_dict.keys()}
+    print('Querying the CatDV Server. Please wait...')
+
+    for i in lto_data:
+        raw_data = requests.get('http://{}/api/{}/clips;'
+                                'jsessionid={}'
+                                '?filter=and((clip.userFields[U7])'
+                                'has({}))&include='
+                                'userFields'.format(server,
+                                                    api_vers, key,
+                                                    i[0]))
+
+        assert raw_data.status_code == 200
+        res = json.loads(raw_data.text)
+        grp_nm = res['data']['items'][0]['groupName']
+        cat_grp_names[grp_nm][0] += 1
+        cat_grp_names[grp_nm][1] += i[1]
+        time.sleep(1)
+
+    for ca in cat_grp_names.items():
+        print('{}TB written over {} tapes for {}'.format(ca[1][1], ca[1][0],
+                                                         ca[0]))
+    return cat_grp_names
+
+
+
+
 LTOFILETYPES = options = {}
 options['filetypes'] = [
     ('all files', '.*'), ('json files', '.json'), ('csv files', '.csv')]
 
 
 def main():
+
+
     print("Select LTO output file")
     try:
         download_lto_file(username='admin', password='space')
-        
+
         lt_info = get_lto_info()
         print(lt_info)
         start = True
@@ -393,8 +439,12 @@ def main():
                 catdv_login(c)
 
                 names_and_groupid = client_name_id(c)
-                print(names_and_groupid)
-                total_sizes(names_and_groupid, lt_info)
+
+                calculate_written_data(lt_info, names_and_groupid,
+                                       server=c.server,
+                                       api_vers=c.api,
+                                       key=c.key)
+
                 start = False
 
             elif auth == 'n':
@@ -411,7 +461,7 @@ def main():
                 print('Not a recognised input. Please try again.')
 
         delete_lto_file = raw_input('Do you wish to delete the downloaded '
-                                    'LTO history file? [y/n]: ').lower()
+                                    'LTO history file(s)? [y/n]: ').lower()
         if delete_lto_file == 'y':
             for file in glob.glob(r'*.json'):
                 print('Deleted: {}'.format(file))
