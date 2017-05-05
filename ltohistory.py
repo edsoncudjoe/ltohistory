@@ -44,8 +44,6 @@ def open_chrome_browser():
     ch_profile = webdriver.ChromeOptions()
     pref = {'download.default_directory': HOME}
     ch_profile.add_experimental_option('prefs', pref)
-#    chrome_driver = '/Applications/Google ' \
-#                    'Chrome.app/Contents/MacOS/chromedriver'
     chrome_driver = '/usr/local/bin/chromedriver'
     try:
         gc = webdriver.Chrome(chrome_driver,
