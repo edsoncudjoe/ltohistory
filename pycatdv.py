@@ -37,11 +37,11 @@ class Catdvlib(object):
         def build_api_url(self, svr_address, api, username, password,
                           port=':8080'):
             if svr_address.startswith('http://'):
-                self.url = svr_address + port + '/api/' + str(api) + '/' + \
+                self.url = svr_address + '/api/' + str(api) + '/' + \
                        'session?usr=' + username + '&pwd=' + password
                 return self.url
             else:
-                self.url = 'http://' + svr_address + port + '/api/' + \
+                self.url = 'http://' + svr_address + '/api/' + \
                            str(api) + '/' + 'session?usr=' + username + \
                            '&pwd=' + password
                 return self.url
