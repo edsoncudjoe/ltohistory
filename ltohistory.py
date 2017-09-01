@@ -288,8 +288,8 @@ def show_catalog_names(user):
     try:
         print('\nCurrent catalogs available: ')
         for name in user.catalog_names:
-            print name[0]
-    except Exception, e:
+            print(name[0])
+    except Exception as e:
         print(e)
 
 
@@ -309,7 +309,7 @@ def client_name_id(user):
         for name in user.catalog_names:
             clients[name[0]] = name[1]
         return clients
-    except Exception, e:
+    except Exception as e:
         print(e)
 
 
@@ -331,8 +331,8 @@ def total_sizes(client_dict, name_size):
             print('T: {}'.format(terabytes))
 
             print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
-    except Exception, e:
-        print e
+    except Exception as e:
+        print(e)
 
 
 def get_lto_info():
@@ -467,7 +467,7 @@ def main():
                 os.remove(file)
         else:
             print('File will be saved in {}'.format(os.getcwd()))
-    except NameError, e:  # Name_size var has not been created. check CatDV
+    except NameError as e:  # Name_size var has not been created. check CatDV
         print(e, 'Check CatDV data inputs: API login and/or filenames.')
     except AttributeError:
         print('\nUnable to access the CatDV API. Please try again later.')
