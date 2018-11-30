@@ -22,6 +22,7 @@ sys.path.insert(0, '../Py-CatDV')
 from pycatdv import Catdvlib
 
 HOME = os.getcwd()
+user_dl_dir = os.path.expanduser('~/Downloads')
 c = Catdvlib('192.168.0.101:8080', '4')
 
 
@@ -102,23 +103,32 @@ def download_lto_file(username, password):
         browser_login(firefox, usr=username, pwd=password)
         tabs = firefox.find_elements_by_class_name("switcher-button")
         tabs[3].click()
-
+        
         exp_format = firefox.find_element_by_id("sel_exporthist_format")
         for f in exp_format.find_elements_by_tag_name("option"):
             if f.text == "JSON":
                 f.click()
                 break
-
         set_from = firefox.find_element_by_id("txt_exporthist_from")
         set_to = firefox.find_element_by_id("txt_exporthist_to")
-
+        
         dates = set_search_dates()
-
+        print(dates)
+        raw_input('\ncontinue?:')
+        
         if firefox.name == 'chrome':
             set_from.clear()
             set_from.send_keys(dates[0])
+            time.sleep(5)
             set_to.clear()
-            set_to.send_keys(dates[1])
+            raw_input('entering date {}'.format(dates[1]))
+            time.sleep(2)
+            set_to.click()
+            # Current bug chromedriver number 5058 on selenium GH issues
+            # chromedriver is unable to press '3' key
+
+            set_to.send_keys(dates[1]) 
+            raw_input('correct?')
         else:
             set_from.send_keys(Keys.COMMAND + "a")
             set_from.send_keys(Keys.DELETE)
@@ -133,7 +143,7 @@ def download_lto_file(username, password):
         border_click = firefox.find_element_by_id("browse") 
         border_click.click()
         time.sleep(1)
-
+        dl = raw_input('continue to download')
         # download file
         export = firefox.find_element_by_id("btn_exporthist_save")
         export.click()
@@ -342,7 +352,7 @@ def get_lto_info():
     name_size = None
     get_lto = True
     while get_lto:
-        fname = open('history.json', 'r')
+        fname = open(os.path.join(user_dl_dir, 'history.json'), 'r')
         assert fname.name.endswith('.json')
         if '.json' in fname.name:
             jdata = get_json(fname)
@@ -391,29 +401,32 @@ def calculate_written_data(lto_data, names_dict, server, api_vers, key):
     Calculates how TB has been written based on the amount detailed on
     the Space LTO results.
     """
-
-    cat_grp_names = {i: [0, 0] for i in names_dict.keys()}
-    print('Querying the CatDV Server. Please wait...')
-
-    for i in lto_data:
-        raw_data = requests.get('http://{}/api/{}/clips;'
-                                'jsessionid={}'
-                                '?filter=and((clip.userFields[U7])'
-                                'has({}))&include='
-                                'userFields'.format(server,
-                                                    api_vers, key,
-                                                    i[0]))
-
-        assert raw_data.status_code == 200
-        res = json.loads(raw_data.text)
-        grp_nm = res['data']['items'][0]['groupName']
-        cat_grp_names[grp_nm][0] += 1
-        cat_grp_names[grp_nm][1] += i[1]
-        time.sleep(1)
-
-    for ca in cat_grp_names.items():
-        print('{}TB written over {} tapes for {}'.format(ca[1][1], ca[1][0],
-                                                         ca[0]))
+    try:
+        cat_grp_names = {i: [0, 0] for i in names_dict.keys()}
+        print('Querying the CatDV Server. Please wait...')
+    
+        for i in lto_data:
+            raw_data = requests.get('http://{}/api/{}/clips;'
+                                    'jsessionid={}'
+                                    '?filter=and((clip.userFields[U7])'
+                                    'has({}))&include='
+                                    'userFields'.format(server,
+                                                        api_vers, key,
+                                                        i[0]))
+    
+            assert raw_data.status_code == 200
+            res = json.loads(raw_data.text)
+            grp_nm = res['data']['items'][0]['groupName']
+            cat_grp_names[grp_nm][0] += 1
+            cat_grp_names[grp_nm][1] += i[1]
+            time.sleep(1)
+    
+        for ca in cat_grp_names.items():
+            print('{}TB written over {} tapes for {}'.format(ca[1][1], ca[1][0],
+                                                             ca[0]))
+    except Exception as e:
+        print(e)
+        
     return cat_grp_names
 
 
@@ -464,7 +477,7 @@ def main():
         delete_lto_file = raw_input('Do you wish to delete the downloaded '
                                     'LTO history file(s)? [y/n]: ').lower()
         if delete_lto_file == 'y':
-            for file in glob.glob(r'*.json'):
+            for file in glob.glob(r'{}/*.json'.format(user_dl_dir)):
                 print('Deleted: {}'.format(file))
                 os.remove(file)
         else:
