@@ -4,9 +4,13 @@ import shutil
 
 # add files to directory.
 # ensure size of directory does not exceed designated size
+# you only need to edit the working_dir and target_dir variables
+# Example: working_dir = '/Volumes/AV_RAID/'
+# Example: target_dir = '/Volumes/AV_RAID/IV0XX'
 
 working_dir = '' # Enter working dir
 target_dir = '' # Enter target dir
+
 
 def size_fmt(num, suffix='B'):
     for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
