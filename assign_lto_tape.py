@@ -1,16 +1,26 @@
+#!/usr/local/bin/python3
+# assign_lto_tape.py
+# author: Edson Cudjoe
+#
+# This tool organises files into a given directory to be
+# written to LTO tape. Ensuring the directory does not exceed
+# the size of 1.3TB.
+# This tool can be called from the command line as shown in
+# the example below
+# Example:
+# $ ./assign_lto_tape.py --source <SOURCE_DIR> --destination <TARGET_DIR>
+#
+
 import argparse
 import os
 import shutil
 
-# add files to directory.
-# ensure size of directory does not exceed designated size
-# you only need to edit the working_dir and target_dir variables
-# Example: working_dir = '/Volumes/AV_RAID/'
-# Example: target_dir = '/Volumes/AV_RAID/IV0XX'
-
-working_dir = '' # Enter working dir
-target_dir = '' # Enter target dir
-
+p = argparse.ArgumentParser()
+p.add_argument('-s', "--source", type=str, required=True,
+               help="Enter the working directory")
+p.add_argument('-t', "--destination", type=str, required=True,
+               help="Enter the LTO folder the files need to be moved to")
+args = p.parse_args()
 
 def size_fmt(num, suffix='B'):
     for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
@@ -46,5 +56,7 @@ def move_files_to_lto_dir(source, destination):
     final = size_fmt(target_dir_curr_size)
     print('Target dir size: {}'.format(final))
 
+working_dir = args.source
+target_dir = args.destination
 move_files_to_lto_dir(working_dir, target_dir)
 
