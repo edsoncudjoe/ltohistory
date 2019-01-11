@@ -1,7 +1,4 @@
-#!/usr/local/bin/python3
-# assign_lto_tape.py
-# author: Edson Cudjoe
-#
+#!/usr/bin/env python3
 # This tool organises files into a given directory to be
 # written to LTO tape. Ensuring the directory does not exceed
 # the size of 1.3TB.
@@ -14,6 +11,15 @@
 import argparse
 import os
 import shutil
+
+__author__ = "Edson Cudjoe"
+__copyright__ = "Copyright 2019, Intervideo Ltd"
+__credits__ = ["Edson Cudjoe"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Edson Cudjoe"
+__email__ = "it@intervide.co.uk"
+__status__ = "Beta"
 
 p = argparse.ArgumentParser()
 p.add_argument('-s', "--source", type=str, required=True,
