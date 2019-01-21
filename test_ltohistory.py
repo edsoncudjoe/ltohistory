@@ -10,6 +10,41 @@ from selenium.webdriver.common.keys import Keys
 import ltohistory as lh
 from pycatdv import Catdvlib
 
+from ltohistory import LTOHistory
+
+class LTOHistoryTests(unittest.TestCase):
+
+    def setUp(self):
+        self.a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
+
+
+    def test_catdv_api_version(self):
+        self.assertEqual(self.a.api, '4')
+
+    def test_catdv_server_url(self):
+        self.assertEqual(self.a.server, '192.168.0.101:8000')
+
+    def test_set_lto_date_range(self):
+        date_range = self.a.set_lto_date_range()
+        self.assertEqual(type(date_range), type(()))
+
+    def test_open_chrome_browser(self):
+        tab = self.a.open_chrome_browser()
+        self.assertEqual(tab.title.encode('utf-8'), 'LTO Space Login')
+        tab.quit()
+
+    def test_download_lto_history_file(self):
+        window = self.a.open_browser()
+        self.a.browser_login('admin', 'space')
+        tabs = window.find_elements_by_class_name("switcher-button")
+        self.assertEqual(type(tabs), type([]))
+
+        # Find boxes to set date range
+        set_from = window.find_element_by_id("txt_exporthist_from")
+        self.assertEqual(type(set_from), webdriver.remote.webelement.WebElement)
+
+        window.quit()
+
 
 class TestSpaceLTOInterface(unittest.TestCase):
     """Test automation of space LTO web interface"""
@@ -29,14 +64,14 @@ class TestSpaceLTOInterface(unittest.TestCase):
         self.assertIsInstance(self.browser,
                               webdriver.firefox.webdriver.WebDriver)
         # self.assertEqual('LTO Space Login', firefox.title.encode('utf-8'))
-
+    @unittest.skip("skipped during main rebuild")
     def test_chrome_browser(self):
         """Open the Chrome driver"""
         self.browser = lh.open_chrome_browser()
         self.browser.get(self.lto_url)
         self.assertIsInstance(self.browser,
                               webdriver.chrome.webdriver.WebDriver)
-
+    @unittest.skip("skipped during main rebuild")
     def test_download_lto_file(self):
         self.browser = lh.open_browser()
         lh.browser_login(self.browser, usr='admin', pwd='space')
@@ -142,7 +177,7 @@ class TestLtoHistory(unittest.TestCase):
                                                  'group names')
 
 if __name__ == '__main__':
-    test_classes = [TestSpaceLTOInterface, TestLtoHistory]
+    test_classes = [LTOHistoryTests, TestSpaceLTOInterface, TestLtoHistory]
     load = unittest.TestLoader()
 
     suites_list = []

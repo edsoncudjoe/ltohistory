@@ -8,7 +8,7 @@ import os
 import re
 import requests
 import time
-import tkFileDialog
+#import tkFileDialog
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import sys
@@ -30,35 +30,119 @@ user_dl_dir = os.path.expanduser('~/Downloads')
 c = Catdvlib('192.168.0.101:8080', '4')
 
 
-def set_search_dates():
-    """
-    Determines the start and end dates as strings to be entered to the Space
-    LTO History Manager
-    """
-    today = datetime.date.today()
-    first = today.replace(day=1)
-    last_mth = first - datetime.timedelta(days=1)
-    beginning = last_mth.replace(day=1)
-    end = last_mth.strftime("%Y/%m/%d")
-    start = beginning.strftime("%Y/%m/%d")
-    print('Start: {}. End: {}'.format(start, end))
-    return start, end
+class LTOHistory(Catdvlib):
 
+    def __init__(self, server, api, lto_system_ip):
+        super(LTOHistory, self).__init__(server, api)
+        self.lto_ip = lto_system_ip
+        self.HOME = os.getcwd()
 
-def open_chrome_browser():
-    ch_profile = webdriver.ChromeOptions()
-    pref = {'download.default_directory': HOME}
-    ch_profile.add_experimental_option('prefs', pref)
-    chrome_driver = '/usr/local/bin/chromedriver'
-    try:
-        gc = webdriver.Chrome(chrome_driver,
-                                  chrome_options=ch_profile)
-        time.sleep(5)
-        gc.get("http://192.168.0.190/login/?p=/lto/catalogue/")
-        assert 'LTO Space Login' == gc.title.encode('utf-8')
-        return gc
-    except Exception as gc_err:
-        raise gc_err
+    def __str__(self):
+        return super(LTOHistory, self).__str__()
+
+    def set_lto_date_range(self):
+        """
+        Determines the date range as strings to be entered to the Space
+        LTO History Manager
+        """
+        today = datetime.date.today()
+        first = today.replace(day=1)
+        last_mth = first - datetime.timedelta(days=1)
+        beginning = last_mth.replace(day=1)
+        end = last_mth.strftime("%Y/%m/%d")
+        start = beginning.strftime("%Y/%m/%d")
+        print('Start: {}. End: {}'.format(start, end))
+        return start, end
+
+    def open_chrome_browser(self):
+        chrome_profile = webdriver.ChromeOptions()
+        pref = {'download.default_directory': self.HOME}
+        chrome_profile.add_experimental_option('prefs', pref)
+        chrome_driver = '/usr/local/bin/chromedriver'
+        try:
+            gc = webdriver.Chrome(chrome_driver,
+                                      chrome_options=chrome_profile)
+            time.sleep(5)
+            gc.get("http://{}/login/?p=/lto/catalogue/".format(self.lto_ip))
+            return gc
+        except Exception as gc_err:
+            raise gc_err
+
+    def open_browser(self):
+        try:
+            self.browser = self.open_chrome_browser()
+        except Exception as e:
+            print('ERROR: {}'.format(e))
+        return self.browser
+
+    def browser_login(self, usr, pwd):
+        username = self.browser.find_element_by_name("txt_username")
+        password = self.browser.find_element_by_name("txt_password")
+
+        username.send_keys(usr)
+        password.send_keys(pwd)
+
+        btn = self.browser.find_element_by_tag_name("button")
+        btn.click()
+        time.sleep(1)
+
+    def download_lto_history_file(self, username, password):
+        try:
+            window = self.open_browser()
+            self.browser_login(usr=username, pwd=password)
+
+            # Export to file tab
+            tabs = window.find_elements_by_class_name("switcher-button")
+            tabs[3].click()
+
+            exp_format = window.find_element_by_id("sel_exporthist_format")
+            for f in exp_format.find_elements_by_tag_name("option"):
+                if f.text == "JSON":
+                    f.click()
+                    break
+            set_from = window.find_element_by_id("txt_exporthist_from")
+            set_to = window.find_element_by_id("txt_exporthist_to")
+
+            dates = self.set_lto_date_range()
+#            print(dates)
+#            raw_input('\ncontinue?:')
+
+            if window.name == 'chrome':
+                set_from.clear()
+                set_from.send_keys(dates[0])
+                time.sleep(5)
+                set_to.clear()
+                raw_input('entering date {}'.format(dates[1]))
+                time.sleep(2)
+                set_to.click()
+                # Current bug chromedriver number 5058 on selenium GH issues
+                # chromedriver is unable to press '3' key
+
+#                set_to.send_keys(dates[1])
+#                raw_input('correct?')
+#            else:
+#                set_from.send_keys(Keys.COMMAND + "a")
+#                set_from.send_keys(Keys.DELETE)
+#                set_from.send_keys(dates[0])
+#                time.sleep(1)
+#                set_to.send_keys(Keys.COMMAND + "a")
+#                set_to.send_keys(Keys.DELETE)
+#                set_to.send_keys(dates[1])
+
+#            time.sleep(3)
+            # click on blank area to close calender
+#            border_click = firefox.find_element_by_id("browse")
+#            border_click.click()
+#            time.sleep(1)
+#            dl = raw_input('continue to download')
+            # download file
+#            export = firefox.find_element_by_id("btn_exporthist_save")
+#            export.click()
+#            time.sleep(10)
+
+#            firefox.quit()
+        except IndexError:
+            raise IndexError
 
 
 def open_firefox_browser():
@@ -77,15 +161,6 @@ def open_firefox_browser():
         return ffx
     except Exception as ffx_err:
         raise ffx_err
-
-
-def open_browser():
-    try:
-        browser = open_chrome_browser()
-    except Exception as e:
-        print('ERROR: {}'.format(e))
-    return browser
-
 
 def browser_login(browser, usr, pwd):
     usrn = browser.find_element_by_name("txt_username")
@@ -373,22 +448,22 @@ def get_lto_info():
             return name_size
 
 
-def get_catdv_textfiles(name_size):
-    """Opens CatDV text files to collect barcode information"""
-    manual_collect = {}
-    while True:
-        client_name = raw_input('Client name: ')
-        client_file = tkFileDialog.askopenfilename(
-            title='Open CatDV text file')
-        if client_file:
-            barcode_list = set(get_catdv_data(client_file))
-            items = set(get_client_items(name_size, barcode_list))
-            size = get_storage_size(items)
-            manual_collect[client_name] = size
-        new = raw_input('Add another client?: ').lower()
-        if new == 'n':
-            break
-    return manual_collect
+#def get_catdv_textfiles(name_size):
+#    """Opens CatDV text files to collect barcode information"""
+#    manual_collect = {}
+#    while True:
+#        client_name = raw_input('Client name: ')
+#        client_file = tkFileDialog.askopenfilename(
+#            title='Open CatDV text file')
+#        if client_file:
+#            barcode_list = set(get_catdv_data(client_file))
+#            items = set(get_client_items(name_size, barcode_list))
+#            size = get_storage_size(items)
+#            manual_collect[client_name] = size
+#        new = raw_input('Add another client?: ').lower()
+#        if new == 'n':
+#            break
+#    return manual_collect
 
 
 def print_manual(collected):
@@ -443,63 +518,66 @@ def main():
 
 
     print("Select LTO output file")
-    try:
-        download_lto_file(username='admin', password='space')
 
-        lt_info = get_lto_info()
-        print(lt_info)
-        start = True
-        while start:
-            auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
-            if auth == 'y':
-                catdv_login(c)
+    a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
+    a.download_lto_history_file('admin', 'space')
+#    try:
+#        download_lto_file(username='admin', password='space')
 
-                names_and_groupid = client_name_id(c)
+#        lt_info = get_lto_info()
+#        print(lt_info)
+#        start = True
+#        while start:
+#            auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
+#            if auth == 'y':
+#                catdv_login(c)
 
-                calculate_written_data(lt_info, names_and_groupid,
-                                       server=c.server,
-                                       api_vers=c.api,
-                                       key=c.key)
+#                names_and_groupid = client_name_id(c)
 
-                start = False
+#                calculate_written_data(lt_info, names_and_groupid,
+#                                       server=c.server,
+#                                       api_vers=c.api,
+#                                       key=c.key)
 
-            elif auth == 'n':
-                print('You have chosen not to access CatDV.')
-                manual = raw_input('\nDo you wish to locate the files '
-                                   'manually? [Y/n]: ').lower()
-                if manual == 'y':
-                    text = get_catdv_textfiles(lt_info)
-                    print_manual(text)
-                    start = False
-                else:
-                    break
-            else:
-                print('Not a recognised input. Please try again.')
+#                start = False
 
-        delete_lto_file = raw_input('Do you wish to delete the downloaded '
-                                    'LTO history file(s)? [y/n]: ').lower()
-        if delete_lto_file == 'y':
-            for file in glob.glob(r'{}/*.json'.format(user_dl_dir)):
-                print('Deleted: {}'.format(file))
-                os.remove(file)
-        else:
-            print('File will be saved in {}'.format(os.getcwd()))
-    except NameError as e:  # Name_size var has not been created. check CatDV
-        print(e, 'Check CatDV data inputs: API login and/or filenames.')
-    except AttributeError:
-        print('\nUnable to access the CatDV API. Please try again later.')
-    except TypeError:
-        print('Unable to perform this process due to a missing file.')
-    except IndexError:
-        print("Incorrect LTO login details")
-    finally:
-        c.delete_session()
-        try:
-            if lto_file:
-                lto_file.close()
-        except NameError:
-            print('Closing application')
-        print('Goodbye!')
+#            elif auth == 'n':
+#                print('You have chosen not to access CatDV.')
+#                manual = raw_input('\nDo you wish to locate the files '
+#                                   'manually? [Y/n]: ').lower()
+#                if manual == 'y':
+#                    text = get_catdv_textfiles(lt_info)
+#                    print_manual(text)
+#                    start = False
+#                else:
+#                    break
+#            else:
+#                print('Not a recognised input. Please try again.')
+
+#        delete_lto_file = raw_input('Do you wish to delete the downloaded '
+#                                    'LTO history file(s)? [y/n]: ').lower()
+#        if delete_lto_file == 'y':
+#            for file in glob.glob(r'{}/*.json'.format(user_dl_dir)):
+#                print('Deleted: {}'.format(file))
+#                os.remove(file)
+#        else:
+#            print('File will be saved in {}'.format(os.getcwd()))
+#    except NameError as e:  # Name_size var has not been created. check CatDV
+#        print(e, 'Check CatDV data inputs: API login and/or filenames.')
+#    except AttributeError:
+#        print('\nUnable to access the CatDV API. Please try again later.')
+#    except TypeError:
+#        print('Unable to perform this process due to a missing file.')
+#    except IndexError:
+#        print("Incorrect LTO login details")
+#    finally:
+#        c.delete_session()
+#        try:
+#            if lto_file:
+#                lto_file.close()
+#        except NameError:
+#            print('Closing application')
+#        print('Goodbye!')
 
 
 if __name__ == '__main__':
