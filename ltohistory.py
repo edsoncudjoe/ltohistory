@@ -1,11 +1,5 @@
 #!/usr/bin/env python
 
-# __author__ = "Edson Cudjoe"
-# __version__ = "1.0.0"
-# __email__ = "edson@intervideo.co.uk"
-# __status__ = "Development"
-# __date__ = "4 February 2015"
-
 import csv
 import datetime
 import glob
@@ -20,6 +14,16 @@ from selenium.webdriver.common.keys import Keys
 import sys
 sys.path.insert(0, '../Py-CatDV')
 from pycatdv import Catdvlib
+
+__author__ = "Edson Cudjoe"
+__copyright__ = "Copyright 2015, Intervideo"
+__credits__ = ["Edson Cudjoe"]
+__license__ = "MIT"
+__version__ = "1.0.0"
+__maintainer__ = "Edson Cudjoe"
+__email__ = "edson@intervideo.co.uk"
+__status__ = "Development"
+__date__ = "4 February 2015"
 
 HOME = os.getcwd()
 user_dl_dir = os.path.expanduser('~/Downloads')
@@ -350,7 +354,7 @@ def get_lto_info():
     name_size = None
     get_lto = True
     while get_lto:
-        fname = open(os.path.join(user_dl_dir, 'history.json'), 'r')
+        fname = open(os.path.abspath('history.json'), 'r')
         assert fname.name.endswith('.json')
         if '.json' in fname.name:
             jdata = get_json(fname)
