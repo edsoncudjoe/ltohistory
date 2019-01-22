@@ -12,11 +12,10 @@ from pycatdv import Catdvlib
 
 from ltohistory import LTOHistory
 
-class LTOHistoryTests(unittest.TestCase):
+class SpaceLTOTests(unittest.TestCase):
 
     def setUp(self):
         self.a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
-
 
     def test_catdv_api_version(self):
         self.assertEqual(self.a.api, '4')
@@ -41,83 +40,51 @@ class LTOHistoryTests(unittest.TestCase):
 
         # Find boxes to set date range
         set_from = window.find_element_by_id("txt_exporthist_from")
+        set_to = window.find_element_by_id("txt_exporthist_to")
         self.assertEqual(type(set_from), webdriver.remote.webelement.WebElement)
+        self.assertEqual(type(set_to), webdriver.remote.webelement.WebElement)
 
+        # check download btn exists
+        export = window.find_element_by_id("btn_exporthist_save")
+        self.assertEqual(type(export), webdriver.remote.webelement.WebElement)
         window.quit()
 
+    def test_get_lto_info_no_file_error(self):
+        with self.assertRaises(Exception): self.a.get_lto_info()
 
-class TestSpaceLTOInterface(unittest.TestCase):
-    """Test automation of space LTO web interface"""
+
+class LTOHistoryFileTests(unittest.TestCase):
 
     def setUp(self):
-        self.lto_url = "http://192.168.0.190/login/?p=/lto/catalogue/"
+        self.a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
+        self.a.download_lto_history_file('admin', 'space')
+        self.history_file = open(os.path.abspath('history.json'), 'r')
 
     def tearDown(self):
-        if self.browser:
-            self.browser.quit()
+        for file in glob.glob(r'{}/*.json'.format(os.getcwd())):
+            os.remove(file)
 
-    @unittest.skip("No longer used")
-    def test_firefox_browser(self):
-        """Open firefox browser"""
-        self.browser = lh.open_firefox_browser()
-        self.browser.get(self.lto_url)
-        self.assertIsInstance(self.browser,
-                              webdriver.firefox.webdriver.WebDriver)
-        # self.assertEqual('LTO Space Login', firefox.title.encode('utf-8'))
-    @unittest.skip("skipped during main rebuild")
-    def test_chrome_browser(self):
-        """Open the Chrome driver"""
-        self.browser = lh.open_chrome_browser()
-        self.browser.get(self.lto_url)
-        self.assertIsInstance(self.browser,
-                              webdriver.chrome.webdriver.WebDriver)
-    @unittest.skip("skipped during main rebuild")
-    def test_download_lto_file(self):
-        self.browser = lh.open_browser()
-        lh.browser_login(self.browser, usr='admin', pwd='space')
-        tabs = self.browser.find_elements_by_class_name("switcher-button")
-        tabs[3].click()
-
-        exp_format = self.browser.find_element_by_id("sel_exporthist_format")
-        for f in exp_format.find_elements_by_tag_name("option"):
-            if f.text == "JSON":
-                f.click()
-                break
-
-        set_from = self.browser.find_element_by_id("txt_exporthist_from")
-        set_to = self.browser.find_element_by_id("txt_exporthist_to")
-
-        dates = lh.set_search_dates()
-
-        if self.browser.name == 'chrome':
-            set_from.clear()
-            set_from.send_keys(dates[0])
-            set_to.clear()
-            set_to.send_keys(dates[1])
-        else:
-            set_from.send_keys(Keys.COMMAND + "a")
-            set_from.send_keys(Keys.DELETE)
-            set_from.send_keys(dates[0])
-            time.sleep(1)
-            set_to.send_keys(Keys.COMMAND + "a")
-            set_to.send_keys(Keys.DELETE)
-            set_to.send_keys(dates[1])
-
-        time.sleep(3)
-        # click on blank area to close calender
-        border_click = self.browser.find_element_by_id("browse")
-        border_click.click()
-        time.sleep(1)
-
-        # download file
-        export = self.browser.find_element_by_id("btn_exporthist_save")
-        export.click()
-        time.sleep(10)
-
-        fn = open('history.json')
-        assert fn
+    def test_get_lto_info_finds_json_file(self):
+        self.assertTrue(self.history_file)
+        self.assertTrue(self.history_file.name.endswith('.json'))
 
 
+    def test_get_json(self):
+        data = self.a.get_json(self.history_file)
+        self.assertEqual(type(data), type({}))
+
+    def test_json_to_list(self):
+        data = self.a.get_json(self.history_file)
+        current = self.a.json_to_list(data)
+        self.assertEqual(type(current), type([]))
+
+    def test_json_final(self):
+        data = self.a.get_json(self.history_file)
+        current = self.a.json_to_list(data)
+        name_sizes = self.a.json_final(current)
+        self.assertEqual(type(name_sizes), type([]))
+
+@unittest.skip("Repeated and updated elsewhere")
 class TestLtoHistory(unittest.TestCase):
     """Tests for collecting correct data"""
 
@@ -176,8 +143,15 @@ class TestLtoHistory(unittest.TestCase):
         self.assertIn('NGTV', group_data.keys(), 'NGTV should be one of the '
                                                  'group names')
 
+class CatDVTests(unittest.TestCase):
+    pass
+
+
 if __name__ == '__main__':
-    test_classes = [LTOHistoryTests, TestSpaceLTOInterface, TestLtoHistory]
+    test_classes = [SpaceLTOTests,
+                    LTOHistoryFileTests,
+                    TestLtoHistory,
+                    CatDVTests]
     load = unittest.TestLoader()
 
     suites_list = []

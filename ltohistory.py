@@ -40,6 +40,15 @@ class LTOHistory(Catdvlib):
     def __str__(self):
         return super(LTOHistory, self).__str__()
 
+    def byte2tb(self, byte):
+        """Converts byte data from the LTO file to terabytes"""
+        try:
+            f = float(byte)
+            tb = ((((f / 1024) / 1024) / 1024) / 1024)
+            return tb
+        except ValueError:
+            print("Value could not be converted to float. {}".format(str(byte)))
+
     def set_lto_date_range(self):
         """
         Determines the date range as strings to be entered to the Space
@@ -51,7 +60,6 @@ class LTOHistory(Catdvlib):
         beginning = last_mth.replace(day=1)
         end = last_mth.strftime("%Y/%m/%d")
         start = beginning.strftime("%Y/%m/%d")
-        print('Start: {}. End: {}'.format(start, end))
         return start, end
 
     def open_chrome_browser(self):
@@ -76,6 +84,7 @@ class LTOHistory(Catdvlib):
         return self.browser
 
     def browser_login(self, usr, pwd):
+        """Login to the Space LTO web interface"""
         username = self.browser.find_element_by_name("txt_username")
         password = self.browser.find_element_by_name("txt_password")
 
@@ -87,6 +96,10 @@ class LTOHistory(Catdvlib):
         time.sleep(1)
 
     def download_lto_history_file(self, username, password):
+        """
+        Automates getting the tape history file from the Space LTO
+        web interface
+        """
         try:
             window = self.open_browser()
             self.browser_login(usr=username, pwd=password)
@@ -112,37 +125,104 @@ class LTOHistory(Catdvlib):
                 set_from.send_keys(dates[0])
                 time.sleep(5)
                 set_to.clear()
-                raw_input('entering date {}'.format(dates[1]))
+#                raw_input('entering date {}'.format(dates[1]))
                 time.sleep(2)
                 set_to.click()
                 # Current bug chromedriver number 5058 on selenium GH issues
                 # chromedriver is unable to press '3' key
 
-#                set_to.send_keys(dates[1])
+                set_to.send_keys(dates[1])
 #                raw_input('correct?')
-#            else:
-#                set_from.send_keys(Keys.COMMAND + "a")
-#                set_from.send_keys(Keys.DELETE)
-#                set_from.send_keys(dates[0])
-#                time.sleep(1)
-#                set_to.send_keys(Keys.COMMAND + "a")
-#                set_to.send_keys(Keys.DELETE)
-#                set_to.send_keys(dates[1])
+            else:
+                set_from.send_keys(Keys.COMMAND + "a")
+                set_from.send_keys(Keys.DELETE)
+                set_from.send_keys(dates[0])
+                time.sleep(1)
+                set_to.send_keys(Keys.COMMAND + "a")
+                set_to.send_keys(Keys.DELETE)
+                set_to.send_keys(dates[1])
 
-#            time.sleep(3)
+            time.sleep(1)
             # click on blank area to close calender
-#            border_click = firefox.find_element_by_id("browse")
-#            border_click.click()
-#            time.sleep(1)
+            border_click = window.find_element_by_id("browse")
+            border_click.click()
+            time.sleep(1)
 #            dl = raw_input('continue to download')
             # download file
-#            export = firefox.find_element_by_id("btn_exporthist_save")
-#            export.click()
-#            time.sleep(10)
+            export = window.find_element_by_id("btn_exporthist_save")
+            export.click()
+            time.sleep(10)
 
-#            firefox.quit()
+            window.quit()
         except IndexError:
             raise IndexError
+
+    def get_lto_info(self):
+        """Collects LTO information into a list."""
+        name_size = None
+        get_lto = True
+        while get_lto:
+            fname = open(os.path.abspath('history.json'), 'r')
+            assert fname.name.endswith('.json')
+            if '.json' in fname.name:
+                jdata = get_json(fname)
+                current = json_to_list(jdata)
+                name_size = json_final(current)
+                get_lto = False
+            elif '.csv' in fname.name:
+                lto_file = open(fname)
+                data = csv.reader(lto_file)
+                name_size = lto_to_list(data)
+                get_lto = False
+            else:
+                print('\nNo file submitted.')
+                get_lto = False
+            if name_size:
+                return name_size
+
+    def get_json(self, submitted):
+        """
+        Reads submitted JSON file and returns a dictionary
+        """
+        # lto = open(submitted_lto_file, 'r')
+        jfile = json.load(submitted)
+        return jfile
+
+    def json_to_list(self, json_data_from_file):
+        """Reads data from JSON dictionary. Returns data into a list"""
+        json_collect = []
+        for i in json_data_from_file['tapes']:
+            json_collect.append((i['name'], i['used_size']))
+        return json_collect
+
+
+    def json_final(self, current_json_list):
+        """
+        Converts given filesize into TB. returns list of tuples containing
+        IV barcode numbers plus file size.
+        """
+        final = []
+        for c in current_json_list:
+            try:
+                tb = self.byte2tb(c[1])  # converts GB byte data to TB
+                a = re.search(r'(IV\d\d\d\d)', c[0])
+                final.append((str(a.group()), round(tb, 2)))
+            except AttributeError:
+                pass
+        return final
+
+    def catdv_login(self, user):
+        """Enter CatDV server login details to get access to the API"""
+        try:
+            user.get_auth()
+            print('\nGetting catalog data...\n')
+            user.get_session_key()
+            assert user.key
+            user.get_catalog_name()
+            time.sleep(1)
+            print('Catalog names and ID\'s have been loaded')
+        except:
+            raise AttributeError
 
 
 def open_firefox_browser():
@@ -161,84 +241,6 @@ def open_firefox_browser():
         return ffx
     except Exception as ffx_err:
         raise ffx_err
-
-def browser_login(browser, usr, pwd):
-    usrn = browser.find_element_by_name("txt_username")
-    pswd = browser.find_element_by_name("txt_password")
-
-    usrn.send_keys(usr)
-    pswd.send_keys(pwd)
-
-    btn = browser.find_element_by_tag_name("button")
-    btn.click()
-    time.sleep(1)
-
-
-def download_lto_file(username, password):
-    try:
-        firefox = open_browser()
-        browser_login(firefox, usr=username, pwd=password)
-        tabs = firefox.find_elements_by_class_name("switcher-button")
-        tabs[3].click()
-        
-        exp_format = firefox.find_element_by_id("sel_exporthist_format")
-        for f in exp_format.find_elements_by_tag_name("option"):
-            if f.text == "JSON":
-                f.click()
-                break
-        set_from = firefox.find_element_by_id("txt_exporthist_from")
-        set_to = firefox.find_element_by_id("txt_exporthist_to")
-        
-        dates = set_search_dates()
-        print(dates)
-        raw_input('\ncontinue?:')
-        
-        if firefox.name == 'chrome':
-            set_from.clear()
-            set_from.send_keys(dates[0])
-            time.sleep(5)
-            set_to.clear()
-            raw_input('entering date {}'.format(dates[1]))
-            time.sleep(2)
-            set_to.click()
-            # Current bug chromedriver number 5058 on selenium GH issues
-            # chromedriver is unable to press '3' key
-
-            set_to.send_keys(dates[1]) 
-            raw_input('correct?')
-        else:
-            set_from.send_keys(Keys.COMMAND + "a")
-            set_from.send_keys(Keys.DELETE)
-            set_from.send_keys(dates[0])
-            time.sleep(1)
-            set_to.send_keys(Keys.COMMAND + "a")
-            set_to.send_keys(Keys.DELETE)
-            set_to.send_keys(dates[1])
-
-        time.sleep(3)
-        # click on blank area to close calender
-        border_click = firefox.find_element_by_id("browse") 
-        border_click.click()
-        time.sleep(1)
-        dl = raw_input('continue to download')
-        # download file
-        export = firefox.find_element_by_id("btn_exporthist_save")
-        export.click()
-        time.sleep(10)
-
-        firefox.quit()
-    except IndexError:
-        raise IndexError
-
-
-def byte2tb(byte):
-    """Converts byte data from the LTO file to terabytes"""
-    try:
-        f = float(byte)
-        tb = ((((f / 1024) / 1024) / 1024) / 1024)
-        return tb
-    except ValueError:
-        print("Value could not be converted to float. {}".format(str(byte)))
 
 
 def get_catdv_data(textfile):
@@ -300,40 +302,6 @@ def lto_to_list(data):
                 gb = byte2tb(c[1])
                 a = re.search(r'(IV\d\d\d\d)', c[0])
                 final.append((str(a.group()), round(gb, 2)))
-    return final
-
-
-# retrieve data from GBlabs JSON output
-def get_json(submitted):
-    """
-    Reads submitted JSON file and returns the JSON dictionary
-    """
-    # lto = open(submitted_lto_file, 'r')
-    jfile = json.load(submitted)
-    return jfile
-
-
-def json_to_list(json_data_from_file):
-    """Reads data from JSON dictionary. Returns data into a list"""
-    json_collect = []
-    for i in json_data_from_file['tapes']:
-        json_collect.append((i['name'], i['used_size']))
-    return json_collect
-
-
-def json_final(current_json_list):
-    """
-    Converts given filesize into TB. returns list of tuples containing
-    IV barcode numbers plus file size.
-    """
-    final = []
-    for c in current_json_list:
-        try:
-            tb = byte2tb(c[1])  # converts GB byte data to TB
-            a = re.search(r'(IV\d\d\d\d)', c[0])
-            final.append((str(a.group()), round(tb, 2)))
-        except AttributeError:
-            pass
     return final
 
 
@@ -423,31 +391,6 @@ def total_sizes(client_dict, name_size):
     except Exception as e:
         print(e)
 
-
-def get_lto_info():
-    """Collects LTO information into a list."""
-    name_size = None
-    get_lto = True
-    while get_lto:
-        fname = open(os.path.abspath('history.json'), 'r')
-        assert fname.name.endswith('.json')
-        if '.json' in fname.name:
-            jdata = get_json(fname)
-            current = json_to_list(jdata)
-            name_size = json_final(current)
-            get_lto = False
-        elif '.csv' in fname.name:
-            lto_file = open(fname)
-            data = csv.reader(lto_file)
-            name_size = lto_to_list(data)
-            get_lto = False
-        else:
-            print('\nNo file submitted.')
-            get_lto = False
-        if name_size:
-            return name_size
-
-
 #def get_catdv_textfiles(name_size):
 #    """Opens CatDV text files to collect barcode information"""
 #    manual_collect = {}
@@ -517,10 +460,12 @@ options['filetypes'] = [
 def main():
 
 
-    print("Select LTO output file")
+    print("Getting LTO History file")
 
     a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
     a.download_lto_history_file('admin', 'space')
+    hist_data = a.get_lto_info()
+    print(hist_data)
 #    try:
 #        download_lto_file(username='admin', password='space')
 
