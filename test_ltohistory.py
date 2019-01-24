@@ -31,7 +31,13 @@ class SpaceLTOTests(unittest.TestCase):
         tab = self.a.open_chrome_browser()
         self.assertEqual(tab.title.encode('utf-8'), 'LTO Space Login')
         tab.quit()
-
+    
+    @unittest.skip("Update Geckodriver/Selenium before running")
+    def test_open_firefox_browser(self):
+        window = self.a.open_firefox_browser()
+        self.assertEqual(window.title.encode('utf-8'), 'LTO Space Login')
+        window.quit()
+        
     def test_download_lto_history_file(self):
         window = self.a.open_browser()
         self.a.browser_login('admin', 'space')
@@ -68,7 +74,6 @@ class LTOHistoryFileTests(unittest.TestCase):
         self.assertTrue(self.history_file)
         self.assertTrue(self.history_file.name.endswith('.json'))
 
-
     def test_get_json(self):
         data = self.a.get_json(self.history_file)
         self.assertEqual(type(data), type({}))
@@ -79,78 +84,69 @@ class LTOHistoryFileTests(unittest.TestCase):
         self.assertEqual(type(current), type([]))
 
     def test_json_final(self):
+        """
+        Test for list of tuples.
+        First item in tuple should be tape number
+        Second item should be tape size in TB
+        """
         data = self.a.get_json(self.history_file)
         current = self.a.json_to_list(data)
         name_sizes = self.a.json_final(current)
-        self.assertEqual(type(name_sizes), type([]))
+        self.assertEqual(type(name_sizes), type([]), 'Expected a list')
+        self.assertEqual(type(name_sizes[0]), type(()),'Expected a tuple')
+        self.assertIn('IV', name_sizes[0][0],
+                      'Barcode should start with \'IV\'')
+        self.assertEqual(type(name_sizes[0][1]), float)
 
-@unittest.skip("Repeated and updated elsewhere")
-class TestLtoHistory(unittest.TestCase):
-    """Tests for collecting correct data"""
-
-    c = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls.c = Catdvlib(server_url='192.168.0.101:8080', api_vers=4)
-        cls.c.set_auth(username='web', password='python')
-        cls.key = cls.c.get_session_key()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.c.delete_session()
-
-
-    def test_catdv_login(self):
-        """Test whether login returns a successful status code"""
-        self.assertEqual(len(self.key), 32)
-
-    def test_get_lto_info(self):
-        """Test data loaded from lto file loads correctly"""
-        filename = open('history.json', 'r')
-        assert filename
-        jdata = json.load(filename)
-        collection = [(i['name'], i['used_size']) for i in jdata['tapes']]
-        self.assertGreater(len(collection), 1, 'list should not be empty')
-
-    def test_client_name_id(self):
-        """
-        Test length of created dictionary to find out if it has
-        been populated.
-        """
-        self.c.get_catalog_name()
-        self.name_id = lh.client_name_id(self.c)
-        self.assertGreater(len(self.name_id), 2)
-
-    @unittest.skip("No longer used")
-    def test_total_sizes(self):
-        clients = {u'NGTV': 4627, u'ContentMedia': 66924, u'Power': 1602,
-                   u'Dreamworks': 15653}
-        lto_info = [('IV0624', 1.17), ('IV0625', 1.17)]
-        lh.total_sizes(client_dict=clients, name_size=lto_info)
-        pass
-
-    def test_calculate_written_data(self):
-        lto_info = lh.get_lto_info()
-        self.c.get_catalog_name()
-        names = lh.client_name_id(self.c)
-        group_data = lh.calculate_written_data(lto_info, names,
-                                               server=self.c.server,
-                                               api_vers=self.c.api,
-                                               key=self.c.key)
-        self.assertEqual(type(group_data), type({}), 'group data shoud be a '
-                                                     'dictionary')
-        self.assertIn('NGTV', group_data.keys(), 'NGTV should be one of the '
-                                                 'group names')
 
 class CatDVTests(unittest.TestCase):
-    pass
-
+            
+    @classmethod
+    def setUpClass(cls):
+        super(CatDVTests, cls).setUpClass()
+        cls.a = LTOHistory('192.168.0.101:8080', '4', '192.168.16.99')
+        cls.a.catdv_login(cls.a)
+        
+    def tearDown(self):
+        time.sleep(5)
+        self.a.delete_session()
+        for file in glob.glob(r'{}/*.json'.format(os.getcwd())):
+            os.remove(file)
+            
+    def test_catdv_login(self):
+        self.assertGreater(len(self.a.key), 1)
+        self.assertEqual(self.a.server, '192.168.0.101:8080')
+        self.assertEqual(self.a.api, '4')
+        
+    def test_client_name_id(self):
+        self.clients = self.a.client_name_id(self.a)
+        self.assertEqual(type(self.clients), type({}))
+        self.assertGreater(len(self.clients.keys()), 1)
+    
+    def test_catalog_group_names(self):
+        self.a.download_lto_history_file('admin', 'space')
+        history_file = open(os.path.abspath('history.json'), 'r')
+        clients = self.a.client_name_id(self.a)
+        cat_grp_names = {i: [0, 0] for i in clients.keys()}
+        self.assertEqual(type(cat_grp_names.keys()), type([]))
+      
+    def test_calculate_written_data(self):
+        """Test that a dictionary is created"""
+        self.a.download_lto_history_file('admin', 'space')
+        self.a.get_catalog_name()
+        history_file = open(os.path.abspath('history.json'), 'r')
+        clients = self.a.client_name_id(self.a)
+        data = self.a.calculate_written_data(history_file,
+                                             clients,
+                                             self.a.server,
+                                             self.a.api,
+                                             self.a.key)
+        self.assertEqual(type(data), type({}), 'should be a dictionary')
+        
 
 if __name__ == '__main__':
     test_classes = [SpaceLTOTests,
                     LTOHistoryFileTests,
-                    TestLtoHistory,
                     CatDVTests]
     load = unittest.TestLoader()
 

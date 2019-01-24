@@ -4,11 +4,11 @@ import csv
 import datetime
 import glob
 import json
+import logging
 import os
 import re
 import requests
 import time
-#import tkFileDialog
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 import sys
@@ -19,15 +19,16 @@ __author__ = "Edson Cudjoe"
 __copyright__ = "Copyright 2015, Intervideo"
 __credits__ = ["Edson Cudjoe"]
 __license__ = "MIT"
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __maintainer__ = "Edson Cudjoe"
 __email__ = "edson@intervideo.co.uk"
 __status__ = "Development"
 __date__ = "4 February 2015"
 
-HOME = os.getcwd()
-user_dl_dir = os.path.expanduser('~/Downloads')
-c = Catdvlib('192.168.0.101:8080', '4')
+logging.basicConfig(format='%(process)d-%(levelname)s %(asctime)s - %(message)s',
+                    datefmt='%d-%b-%y %H:%M:%S',
+                    filename='logs/ltohistory.log',
+                    filemode='a')
 
 
 class LTOHistory(Catdvlib):
@@ -75,6 +76,22 @@ class LTOHistory(Catdvlib):
             return gc
         except Exception as gc_err:
             raise gc_err
+        
+    def open_firefox_browser(self):
+        profile = webdriver.FirefoxProfile()
+        profile.set_preference('browser.download.folderList', 2)
+        profile.set_preference('browser.download.manager.showWhenStarting', False)
+        profile.set_preference('browser.download.dir', os.getcwd())
+        profile.set_preference('browser.helperApps.neverAsk.saveToDisk',
+                               'application/json,text/javascript,text/json,'
+                               'text/x-json')
+        try:
+            ffx = webdriver.Firefox(firefox_profile=profile)
+            time.sleep(5)
+            ffx.get("http://{}/login/?p=/lto/catalogue/".format(self.lto_ip))
+            return ffx
+        except Exception as ffx_err:
+            raise ffx_err        
 
     def open_browser(self):
         try:
@@ -165,9 +182,9 @@ class LTOHistory(Catdvlib):
             fname = open(os.path.abspath('history.json'), 'r')
             assert fname.name.endswith('.json')
             if '.json' in fname.name:
-                jdata = get_json(fname)
-                current = json_to_list(jdata)
-                name_size = json_final(current)
+                jdata = self.get_json(fname)
+                current = self.json_to_list(jdata)
+                name_size = self.json_final(current)
                 get_lto = False
             elif '.csv' in fname.name:
                 lto_file = open(fname)
@@ -195,7 +212,6 @@ class LTOHistory(Catdvlib):
             json_collect.append((i['name'], i['used_size']))
         return json_collect
 
-
     def json_final(self, current_json_list):
         """
         Converts given filesize into TB. returns list of tuples containing
@@ -211,36 +227,121 @@ class LTOHistory(Catdvlib):
                 pass
         return final
 
-    def catdv_login(self, user):
+    def catdv_login(self, user_instance):
         """Enter CatDV server login details to get access to the API"""
         try:
-            user.get_auth()
-            print('\nGetting catalog data...\n')
-            user.get_session_key()
-            assert user.key
-            user.get_catalog_name()
+            user_instance.get_auth()
+            user_instance.get_session_key()
+            user_instance.get_catalog_name()
             time.sleep(1)
-            print('Catalog names and ID\'s have been loaded')
+        except Exception as e:
+            logging.error('Incorrect login')
+            raise e
+    
+    def client_name_id(self, user):
+        """
+        Puts client names and id numbers from tuple into a dictionary
+        """
+        clients = {}
+        try:
+            for name in user.catalog_names:
+                clients[name[0]] = name[1]
+            return clients
+        except Exception as e:
+            print(e)
+    
+    def calculate_written_data(self, lto_data, names_dict, server, api_vers,
+                               key):
+        """
+        Searches the CatDV API based on the IV barcode number.
+        Collects the group name details from the results.
+        Calculates how TB has been written based on the amount detailed on
+        the Space LTO results.
+        """
+        try:
+            cat_grp_names = {i: [0, 0] for i in names_dict.keys()}
+            #print('Querying the CatDV Server. Please wait...')
+            
+            #create api request for 'IV0XXX' barcode
+            for i in lto_data:
+                raw_data = requests.get('http://{}/api/{}/clips;'
+                                        'jsessionid={}'
+                                        '?filter=and((clip.userFields[U7])'
+                                        'has({}))&include='
+                                        'userFields'.format(server,
+                                                            api_vers, key,
+                                                            i[0]))
+        
+                assert raw_data.status_code == 200
+                res = json.loads(raw_data.text)
+                grp_nm = res['data']['items'][0]['groupName']
+                cat_grp_names[grp_nm][0] += 1
+                cat_grp_names[grp_nm][1] += i[1]
+                time.sleep(1)
+        
+            for ca in cat_grp_names.items():
+                print('{}TB written over {} tapes for {}'.format(ca[1][1], ca[1][0],
+                                                                 ca[0]))
+        except Exception as e:
+            print(e)
+            
+        return cat_grp_names
+
+    def total_sizes(self, client_dict, name_size):
+        """Returns total amount archived for each client/catalog group"""
+        assert client_dict
+        assert len(name_size) > 0
+        print(client_dict)
+        print(name_size)
+        try:
+            for item in client_dict.items():
+                barcodes = self.get_barcodes(item[1])
+                print('Barcodes: {}'.format(barcodes))
+    
+                two = set(self.et_client_items(name_size, barcodes))
+                print('Two: {}'.format(two))
+    
+                terabytes = self.get_storage_size(two)
+                print('T: {}'.format(terabytes))
+    
+                print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
+        except Exception as e:
+            print(e)
+
+    def get_barcodes(self, catalog_id, user):
+        """Gets a list of IV barcodes for user-specified client."""
+        user.iv_barcodes = []
+        user.get_catalog_clips(catalog_id)
+        user.collect_iv_numbers()
+        return user.sort_barcodes()
+
+    def get_client_items(self, name_size, clientlist):
+        """Separates main list for each client"""
+        try:
+            client_mnth = []
+            for p in sorted(clientlist):
+                for i in sorted(name_size):
+                    if i[0] in p:
+                        client_mnth.append(i)
+            print('get_clientitems.client_mnth: {}'.format(client_mnth))
+            return client_mnth
         except:
-            raise AttributeError
+            raise TypeError
 
+    def get_storage_size(self, client_items):
+        """Sum of disc size for each tape"""
+        count = 0
+        for i in client_items:
+            count += i[1]
+        return count
 
-def open_firefox_browser():
-    profile = webdriver.FirefoxProfile()
-    profile.set_preference('browser.download.folderList', 2)
-    profile.set_preference('browser.download.manager.showWhenStarting', False)
-    profile.set_preference('browser.download.dir', os.getcwd())
-    profile.set_preference('browser.helperApps.neverAsk.saveToDisk',
-                           'application/json,text/javascript,text/json,'
-                           'text/x-json')
-    try:
-        ffx = webdriver.Firefox(firefox_profile=profile)
-        time.sleep(5)
-        ffx.get("http://192.168.0.190/login/?p=/lto/catalogue/")
-        assert 'LTO Space Login' == ffx.title.encode('utf-8')
-        return ffx
-    except Exception as ffx_err:
-        raise ffx_err
+    def show_catalog_names(self, user):
+        try:
+            print('\nCurrent catalogs available: ')
+            for name in user.catalog_names:
+                print(name[0])
+        except Exception as e:
+            print(e)
 
 
 def get_catdv_data(textfile):
@@ -258,7 +359,6 @@ def get_catdv_data(textfile):
                 pass
     return catdv_list
 
-
 def make_csv_file(final):
     """
     Creates a CSV file to be used with spreadsheets from the intervideo
@@ -271,7 +371,6 @@ def make_csv_file(final):
         for i in range(len(final)):
             writedata.writerow(final[i])
     print('File has been created.')
-
 
 def lto_to_list(data):
     """
@@ -304,226 +403,45 @@ def lto_to_list(data):
                 final.append((str(a.group()), round(gb, 2)))
     return final
 
-
-def get_client_items(name_size, clientlist):
-    """Separates main list for each client"""
-    try:
-        client_mnth = []
-        for p in sorted(clientlist):
-            for i in sorted(name_size):
-                if i[0] in p:
-                    client_mnth.append(i)
-        print('get_clientitems.client_mnth: {}'.format(client_mnth))
-        return client_mnth
-    except:
-        raise TypeError
-
-
-def get_storage_size(client_items):
-    """Sum of disc size for each tape"""
-    count = 0
-    for i in client_items:
-        count += i[1]
-    return count
-
-
-def catdv_login(user):
-    """Enter CatDV server login details to get access to the API"""
-    try:
-        user.get_auth()
-        print('\nGetting catalog data...\n')
-        user.get_session_key()
-        assert user.key
-        user.get_catalog_name()
-        time.sleep(1)
-        print('Catalog names and ID\'s have been loaded')
-    except:
-        raise AttributeError
-
-
-def show_catalog_names(user):
-    try:
-        print('\nCurrent catalogs available: ')
-        for name in user.catalog_names:
-            print(name[0])
-    except Exception as e:
-        print(e)
-
-
-def get_barcodes(catalog_id):
-    """Gets a list of IV barcodes for user-specified client."""
-    c.iv_barcodes = []
-    c.get_catalog_clips(catalog_id)
-    c.collect_iv_numbers()
-    return c.sort_barcodes()
-
-
-def client_name_id(user):
-    """Puts client names and id numbers into a dictionary"""
-    print('\nBuilding client list.')
-    clients = {}
-    try:
-        for name in user.catalog_names:
-            clients[name[0]] = name[1]
-        return clients
-    except Exception as e:
-        print(e)
-
-
-def total_sizes(client_dict, name_size):
-    """Returns total amount archived for each client/catalog group"""
-    assert client_dict
-    assert len(name_size) > 0
-    print(client_dict)
-    print(name_size)
-    try:
-        for item in client_dict.items():
-            barcodes = get_barcodes(item[1])
-            print('Barcodes: {}'.format(barcodes))
-
-            two = set(get_client_items(name_size, barcodes))
-            print('Two: {}'.format(two))
-
-            terabytes = get_storage_size(two)
-            print('T: {}'.format(terabytes))
-
-            print('\n{0}TB written for {1}\n'.format(terabytes, item[0]))
-    except Exception as e:
-        print(e)
-
-#def get_catdv_textfiles(name_size):
-#    """Opens CatDV text files to collect barcode information"""
-#    manual_collect = {}
-#    while True:
-#        client_name = raw_input('Client name: ')
-#        client_file = tkFileDialog.askopenfilename(
-#            title='Open CatDV text file')
-#        if client_file:
-#            barcode_list = set(get_catdv_data(client_file))
-#            items = set(get_client_items(name_size, barcode_list))
-#            size = get_storage_size(items)
-#            manual_collect[client_name] = size
-#        new = raw_input('Add another client?: ').lower()
-#        if new == 'n':
-#            break
-#    return manual_collect
-
-
 def print_manual(collected):
     for name, size in collected.items():
         print('Archived: {}TB for {}'.format(size, name))
 
 
-def calculate_written_data(lto_data, names_dict, server, api_vers, key):
-    """
-    Searches the CatDV API based on the IV barcode number.
-    Collects the group name details from the results.
-    Calculates how TB has been written based on the amount detailed on
-    the Space LTO results.
-    """
-    try:
-        cat_grp_names = {i: [0, 0] for i in names_dict.keys()}
-        print('Querying the CatDV Server. Please wait...')
-    
-        for i in lto_data:
-            raw_data = requests.get('http://{}/api/{}/clips;'
-                                    'jsessionid={}'
-                                    '?filter=and((clip.userFields[U7])'
-                                    'has({}))&include='
-                                    'userFields'.format(server,
-                                                        api_vers, key,
-                                                        i[0]))
-    
-            assert raw_data.status_code == 200
-            res = json.loads(raw_data.text)
-            grp_nm = res['data']['items'][0]['groupName']
-            cat_grp_names[grp_nm][0] += 1
-            cat_grp_names[grp_nm][1] += i[1]
-            time.sleep(1)
-    
-        for ca in cat_grp_names.items():
-            print('{}TB written over {} tapes for {}'.format(ca[1][1], ca[1][0],
-                                                             ca[0]))
-    except Exception as e:
-        print(e)
-        
-    return cat_grp_names
-
-
-
-
-LTOFILETYPES = options = {}
-options['filetypes'] = [
-    ('all files', '.*'), ('json files', '.json'), ('csv files', '.csv')]
-
-
 def main():
 
-
     print("Getting LTO History file")
-
-    a = LTOHistory('192.168.0.101:8000', '4', '192.168.16.99')
-    a.download_lto_history_file('admin', 'space')
-    hist_data = a.get_lto_info()
-    print(hist_data)
-#    try:
-#        download_lto_file(username='admin', password='space')
-
-#        lt_info = get_lto_info()
-#        print(lt_info)
-#        start = True
-#        while start:
-#            auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
-#            if auth == 'y':
-#                catdv_login(c)
-
-#                names_and_groupid = client_name_id(c)
-
-#                calculate_written_data(lt_info, names_and_groupid,
-#                                       server=c.server,
-#                                       api_vers=c.api,
-#                                       key=c.key)
-
-#                start = False
-
-#            elif auth == 'n':
-#                print('You have chosen not to access CatDV.')
-#                manual = raw_input('\nDo you wish to locate the files '
-#                                   'manually? [Y/n]: ').lower()
-#                if manual == 'y':
-#                    text = get_catdv_textfiles(lt_info)
-#                    print_manual(text)
-#                    start = False
-#                else:
-#                    break
-#            else:
-#                print('Not a recognised input. Please try again.')
-
-#        delete_lto_file = raw_input('Do you wish to delete the downloaded '
-#                                    'LTO history file(s)? [y/n]: ').lower()
-#        if delete_lto_file == 'y':
-#            for file in glob.glob(r'{}/*.json'.format(user_dl_dir)):
-#                print('Deleted: {}'.format(file))
-#                os.remove(file)
-#        else:
-#            print('File will be saved in {}'.format(os.getcwd()))
-#    except NameError as e:  # Name_size var has not been created. check CatDV
-#        print(e, 'Check CatDV data inputs: API login and/or filenames.')
-#    except AttributeError:
-#        print('\nUnable to access the CatDV API. Please try again later.')
-#    except TypeError:
-#        print('Unable to perform this process due to a missing file.')
-#    except IndexError:
-#        print("Incorrect LTO login details")
-#    finally:
-#        c.delete_session()
-#        try:
-#            if lto_file:
-#                lto_file.close()
-#        except NameError:
-#            print('Closing application')
-#        print('Goodbye!')
-
+    try:
+        a = LTOHistory('192.168.0.101:8080', '4', '192.168.16.99')
+        a.download_lto_history_file('admin', 'space')
+        hist_data = a.get_lto_info()
+        print(hist_data)
+        
+        start = True
+        while start:
+            auth = raw_input('Login to CatDV Api? [y/n]: ').lower()
+            if auth == 'y':
+                a.catdv_login(a)
+                client_name_and_gid = a.client_name_id(a)
+                a.calculate_written_data(hist_data,
+                                         client_name_and_gid,
+                                         a.server,
+                                         a.api,
+                                         a.key)
+                start = False
+            else:
+                print('Unable to provide other options')
+                break
+    except TypeError:
+        print('Your CatDV username or password is incorrect')
+        logging.exception("Exception:")
+    except Exception as e:
+        logging.exception("Exception ocurred")
+    finally:
+        for file in glob.glob(r'{}/*.json'.format(os.getcwd())):
+            os.remove(file)
+            
+        a.delete_session()
 
 if __name__ == '__main__':
     main()
